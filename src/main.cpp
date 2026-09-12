@@ -14,16 +14,22 @@ using namespace vex;
 vex::brain       Brain;
 
 // define your global instances of motors and other devices here
-motor motor1 = motor(PORT11, ratio18_1, false);
-motor motor2 = motor(PORT12, ratio18_1, false);
+motor motorR1 = motor(PORT11, ratio6_1, false);
+motor motorR2 = motor(PORT12, ratio6_1, false);
+motor motorL1 = motor(PORT13, ratio6_1, false);
+motor motorL2 = motor(PORT14, ratio6_1, false);
+motor_group motorGroupR = motor_group(motorR1, motorR2);
+motor_group motorGroupL = motor_group(motorL1, motorL2);
+// Left Group, Right Group, Wheel Travel (in), Track Width (in), Wheel Base (in) units (in) gear ratio (36/60)
+drivetrain drive(motorGroupL, motorGroupR, 8.639, 12.75, 8.5, distanceUnits::in, 0.6);
+
 
 int main() {
 
     Brain.Screen.printAt( 10, 50, "Hello V5" );
    
     while(1) {
-        motor1.spin(forward);
-        motor2.spin(forward);
+        drive.drive(forward);
         // Allow other tasks to run
         this_thread::sleep_for(10);
     }
