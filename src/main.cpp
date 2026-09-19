@@ -38,6 +38,8 @@ int main() {
 
     int deadband = 5;
     int liftSpeed = 40;
+    double BOTTOM_LIMIT_DEG = -1.0;    // Deg threshold near bottom rest
+    double TOP_LIMIT_DEG = 540.0;  // Deg threshold near top extension
 
     while (true) {
         // --- READ JOYSTICKS & SCALE TO 75% MAX SPEED ---
@@ -79,14 +81,30 @@ int main() {
 
         
         // dr4b
+        double currentPosition = dr4b.position(rotationUnits::deg);
+
         if (Controller1.ButtonR1.pressing()) {
-            dr4b.setVelocity(liftSpeed, percent);
-            dr4b.spin(forward);
-        } else if (Controller1.ButtonR2.pressing()) {
-            dr4b.setVelocity(liftSpeed, percent);
-            dr4b.spin(reverse);
-        } else {
-            // Stop and hold position against gravity
+            // Prevent moving UP past maximum height in degrees
+            if (currentPosition >= TOP_LIMIT_DEG) {
+                dr4b.stop();
+            } else {
+                dr4b.setVelocity(liftSpeed, percent);
+                dr4b.spin(forward);
+            }
+        } 
+
+        else if (Controller1.ButtonR2.pressing()) {
+            // Prevent moving DOWN past minimum height in degrees
+            if (currentPosition <= BOTTOM_LIMIT_DEG) {
+                dr4b.stop();
+            } else {
+                dr4b.setVelocity(liftSpeed, percent);
+                dr4b.spin(reverse);
+            }
+        } 
+
+        else {
+            // Hold position actively against gravity
             dr4b.stop();
         }
 
