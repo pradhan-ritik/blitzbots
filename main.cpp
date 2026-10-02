@@ -23,14 +23,12 @@ motor motorL1 = motor(PORT9, ratio6_1, false);
 motor motorL2 = motor(PORT6, ratio6_1, false);
 motor dr4bR = motor(PORT16, ratio36_1, false);
 motor dr4bL = motor(PORT17, ratio36_1, true);
-motor Intake = motor(PORTX, ratio____, true/false);
-motor Outtake = motor(PORTX, ratio_____, true/false);
+motor intake = motor(PORT18, ratio18_1, false);
 
 // Motor groups
 motor_group motorGroupR = motor_group(motorR1, motorR2);
 motor_group motorGroupL = motor_group(motorL1, motorL2);
 motor_group dr4b = motor_group(dr4bR, dr4bL);
-motor_group in_out = motor_group(Intake, Outtake);
 
 // Drivetrain setup
 drivetrain drive(motorGroupL, motorGroupR, 8.639, 12.75, 8.5, distanceUnits::in, 0.6);
@@ -93,15 +91,7 @@ int main() {
         
         // dr4b
         double currentPosition = dr4b.position(rotationUnits::deg);
-        if (Controller1.ButtonL1.pressing()) {
-            in_out.spin(forward, 100, percent); } 
-        else if (Controller1.ButtonL2.pressing()) {
-            in_out.spin(reverse, 100, percent); } 
-        else {
-            in_out.stop(hold); } // Options are hold, coast, and brake
-        wait(20, msec);
-            }
-        
+
         if (Controller1.ButtonR1.pressing()) {
             if (currentPosition >= TOP_LIMIT_DEG) {
                 dr4b.stop(); // Prevent moving up past maximum height in degrees
@@ -125,7 +115,11 @@ int main() {
             // Hold position actively against gravity even if the controller is not being physically touched at the moment
             dr4b.stop();
         }
-
+        if (Controller1.ButtonL1.pressing()) {
+            intake.setVelocity(100, percent);
+            intake.spin(forward);
+        }          
+        
         // Brief delay to give time to the brain scheduler
         wait(20, msec); // basically used to not overload the brain with too many commands at one given moment in time
     }
