@@ -24,11 +24,13 @@ motor motorL2 = motor(PORT6, ratio6_1, false);
 motor dr4bR = motor(PORT16, ratio36_1, false);
 motor dr4bL = motor(PORT17, ratio36_1, true);
 motor intake = motor(PORT18, ratio18_1, false);
+motor outtake = motor(PORT2, ratio18_1, false);
 
 // Motor groups
 motor_group motorGroupR = motor_group(motorR1, motorR2);
 motor_group motorGroupL = motor_group(motorL1, motorL2);
 motor_group dr4b = motor_group(dr4bR, dr4bL);
+motor_group in_out = motor_group(intake,outtake);
 
 // Drivetrain setup
 drivetrain drive(motorGroupL, motorGroupR, 8.639, 12.75, 8.5, distanceUnits::in, 0.6);
@@ -118,8 +120,17 @@ int main() {
         if (Controller1.ButtonL1.pressing()) {
             intake.setVelocity(100, percent);
             intake.spin(forward);
-        }          
-        
+        } else {
+            intake.stop();
+        }
+
+        if (Controller1.ButtonL2.pressing()) {
+            outtake.setVelocity(100, percent);
+            outtake.spin(forward);
+        } else {
+            outtake.stop();
+        }
+
         // Brief delay to give time to the brain scheduler
         wait(20, msec); // basically used to not overload the brain with too many commands at one given moment in time
     }
