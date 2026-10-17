@@ -101,14 +101,21 @@ int main() {
         } 
 
         else if (Controller1.ButtonR2.pressing()) {
-            if (currentPosition <= BOTTOM_LIMIT_DEG) {
-                dr4b.stop(); // Prevent moving down past minimum height in degrees
+            // Lower each side to its own bottom limit so both sides end up even
+            if (dr4bR.position(rotationUnits::deg) > BOTTOM_LIMIT_DEG) {
+                dr4bR.setVelocity(liftSpeed, percent);
+                dr4bR.spin(reverse);
             } else {
-                dr4b.setVelocity(liftSpeed, percent);
-                dr4b.spin(reverse);
-                // Same logic as ButtonR1, except that it is for the reversed movement.
+                dr4bR.stop();
             }
-        } 
+            if (dr4bL.position(rotationUnits::deg) > BOTTOM_LIMIT_DEG) {
+                dr4bL.setVelocity(liftSpeed, percent);
+                dr4bL.spin(reverse);
+            } else {
+                dr4bL.stop();
+            }
+        }
+
 
         else {
             // Hold position actively against gravity even if the controller is not being physically touched at the moment
