@@ -5,7 +5,7 @@ using namespace vex;
 
 // ===================== TUNABLES (set these on the field) =====================
 static const double TOP_DEG = 540.0;     // lift top soft limit (deg)
-static const double BOTTOM_DEG = -1.0;   // lift bottom soft limit (deg)
+static const double BOTTOM_DEG = 0.0;   // lift bottom soft limit (deg)
 static const int LIFT_SPEED = 60;        // percent, auton can push harder
 static const int DRIVE_SPEED = 60;       // percent
 
@@ -31,17 +31,9 @@ static void raiseToTop() {
 }
 
 static void lowerToBottom() {
-  dr4bR.setVelocity(LIFT_SPEED, percent);
-  dr4bL.setVelocity(LIFT_SPEED, percent);
-  dr4bR.spin(reverse);
-  dr4bL.spin(reverse);
-  while (dr4bR.position(rotationUnits::deg) > BOTTOM_DEG ||
-         dr4bL.position(rotationUnits::deg) > BOTTOM_DEG) {
-    if (dr4bR.position(rotationUnits::deg) <= BOTTOM_DEG) dr4bR.stop();
-    if (dr4bL.position(rotationUnits::deg) <= BOTTOM_DEG) dr4bL.stop();
-    wait(20, msec);
-  }
-  dr4b.stop(); // hold
+  dr4b.setVelocity(LIFT_SPEED, percent);
+  dr4b.spinToPosition(BOTTOM_DEG, rotationUnits::deg, true);
+  dr4b.stop(hold);
 }
 
 // ---- Scoring helpers (fill in once intake motors exist) ----
