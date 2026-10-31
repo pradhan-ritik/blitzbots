@@ -21,7 +21,11 @@ static const double PARK_BACK_IN = 12.0; // final reposition off the wall
 // Globals defined in main.cpp
 extern motor dr4bR;
 extern motor dr4bL;
+extern motor outtake;
+extern motor intake;
 extern motor_group dr4b;
+extern motor_group motorGroupR;
+extern motor_group motorGroupL;
 extern drivetrain drive;
 
 // ---- Lift helpers ----
@@ -38,20 +42,24 @@ static void lowerToBottom() {
 
 // ---- Scoring helpers (fill in once intake motors exist) ----
 static void scorePins(int count) {
-  // Placeholder: spin outtake to drop `count` pins into the goal.
-  wait(200, msec); // remove when real scoring is in
+  outtake.setVelocity(100, percent);
+  outtake.spin(forward);
+  wait(200,msec);
+  outtake.stop();
 }
 
 static void collectPins() {
-  // Placeholder: run intake while driving over pins.
-  wait(200, msec); // remove when real intake is in
+  intake.setVelocity(100, percent);
+  intake.spin(forward); // No wait-time because intake is continuously moving throughout the autonomous period.
 }
 
+// }
 // ===================== AUTONOMOUS =====================
 // Strategy: Autonomous Win Point needs 6+ pin halves scored on our side,
 // 2+ goals with 2+ pins each, and no robot touching the wall at the end.
 // Auton is 15 seconds: keep every segment tight.
 void runAuton() {
+  dr4b.resetPosition();
   dr4b.setStopping(hold);
   drive.setDriveVelocity(DRIVE_SPEED, percent);
   drive.setTurnVelocity(DRIVE_SPEED, percent);

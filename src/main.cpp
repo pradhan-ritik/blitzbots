@@ -11,9 +11,10 @@
 
 using namespace vex;
 
+competition Competition;
+
 // Global instance of brain
 brain Brain;
-
 // Controller
 controller Controller1 = controller(primary);
 
@@ -24,7 +25,7 @@ motor motorL1 = motor(PORT9, ratio6_1, false);
 motor motorL2 = motor(PORT6, ratio6_1, false);
 motor dr4bR = motor(PORT16, ratio36_1, false);
 motor dr4bL = motor(PORT17, ratio36_1, true);
-motor intake = motor(PORT18, ratio18_1, false);
+motor intake = motor(PORT19, ratio18_1, false);
 motor outtake = motor(PORT2, ratio18_1, false);
 // Motor groups
 motor_group motorGroupR = motor_group(motorR1, motorR2);
@@ -33,8 +34,15 @@ motor_group dr4b = motor_group(dr4bR, dr4bL);
 
 // Drivetrain setup
 drivetrain drive(motorGroupL, motorGroupR, 8.639, 12.75, 8.5, distanceUnits::in, 0.6);
+void pre_auton() {
+  // Reset motor positions and set stopping modes
+  dr4b.resetPosition();
+  dr4b.setStopping(hold);
+  motorGroupL.setStopping(coast);
+  motorGroupR.setStopping(coast);
+}
 
-int main() {
+void driver_control() {
     motorGroupL.setStopping(coast); // not a sudden stop, but moves forward with the momentum it has before coming to a rest.
     motorGroupR.setStopping(coast); // not a sudden stop, but moves forward with the momentum it has before coming to a rest.
     dr4b.setStopping(hold); // if not being adjusted by the controller, the dr4b will not fall due to gravity, rather hold.
@@ -94,28 +102,24 @@ int main() {
         double currentPosition = dr4b.position(rotationUnits::deg);
 
         if (Controller1.ButtonR1.pressing()) {
-            if (currentPosition >= TOP_LIMIT_DEG) {
-                dr4b.stop(); // Prevent moving up past maximum height in degrees
-            } else {
+            // if (currentPosition >= TOP_LIMIT_DEG) {
+            //     dr4b.stop(); // Prevent moving up past maximum height in degrees
+            // } else {
                 dr4b.setVelocity(liftSpeed, percent); // makes sure that the dr4b only goes to a max of 40%
                 dr4b.spin(forward);
             }
-        } 
+        // } 
 
         else if (Controller1.ButtonR2.pressing()) {
             // Lower each side to its own bottom limit so both sides end up even
-            if (dr4bR.position(rotationUnits::deg) > BOTTOM_LIMIT_DEG) {
-                dr4bR.setVelocity(liftSpeed, percent);
-                dr4bR.spin(reverse);
-            } else {
-                dr4bR.stop();
-            }
-            if (dr4bL.position(rotationUnits::deg) > BOTTOM_LIMIT_DEG) {
-                dr4bL.setVelocity(liftSpeed, percent);
-                dr4bL.spin(reverse);
-            } else {
-                dr4bL.stop();
-            }
+            // if (dr4bR.position(rotationUnits::deg) > BOTTOM_LIMIT_DEG) {
+            dr4b.setVelocity(liftSpeed, percent);
+            dr4b.spin(reverse);
+            // } else {
+            //     dr4bR.stop();
+            // }
+            // if (dr4bL.position(rotationUnits::deg) > BOTTOM_LIMIT_DEG) {
+
         }
 
 
@@ -139,5 +143,17 @@ int main() {
 
         // Brief delay to give time to the brain scheduler
         wait(20, msec); // basically used to not overload the brain with too many commands at one given moment in time
+    }
+}
+int main() {
+    Competition.autonomous(runAuton);
+    Competition.drivercontrol(driver_control);
+    
+    // Run the pre-autonomous function
+    pre_auton();
+    
+    // Prevent main from exiting with an infinite loop
+    while (true) {
+        wait(100,msec);
     }
 }
