@@ -26,7 +26,7 @@ motor motorL2 = motor(PORT6, ratio6_1, false);
 motor dr4bR = motor(PORT16, ratio36_1, false);
 motor dr4bL = motor(PORT17, ratio36_1, true);
 motor intake = motor(PORT19, ratio18_1, false);
-motor outtake = motor(PORT2, ratio18_1, false);
+motor outtake = motor(PORT2, ratio18_1, true);
 // Motor groups
 motor_group motorGroupR = motor_group(motorR1, motorR2);
 motor_group motorGroupL = motor_group(motorL1, motorL2);
@@ -145,6 +145,7 @@ void driver_control() {
         wait(20, msec); // basically used to not overload the brain with too many commands at one given moment in time
     }
 }
+<<<<<<< HEAD
 int main() {
     Competition.autonomous(runAuton);
     Competition.drivercontrol(driver_control);
@@ -157,3 +158,5 @@ int main() {
         wait(100,msec);
     }
 }
+=======
+>>>>>>> 1280f316c37c556ef726ba42e9b864369d38b258
