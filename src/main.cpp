@@ -20,13 +20,14 @@ controller Controller1 = controller(primary);
 
 // Motor definitions (Reversed direction booleans)
 motor motorR1 = motor(PORT5, ratio6_1, true);
-motor motorR2 = motor(PORT20, ratio6_1, true);
+motor motorR2 = motor(PORT14, ratio6_1, true);
 motor motorL1 = motor(PORT9, ratio6_1, false);
 motor motorL2 = motor(PORT6, ratio6_1, false);
 motor dr4bR = motor(PORT16, ratio36_1, false);
 motor dr4bL = motor(PORT17, ratio36_1, true);
 motor intake = motor(PORT19, ratio18_1, false);
-motor outtake = motor(PORT2, ratio18_1, true);
+motor outtake = motor(PORT20, ratio18_1, true);
+motor outtake_move = motor(PORT10, ratio18_1, false);
 // Motor groups
 motor_group motorGroupR = motor_group(motorR1, motorR2);
 motor_group motorGroupL = motor_group(motorL1, motorL2);
@@ -40,6 +41,7 @@ void pre_auton() {
   dr4b.setStopping(hold);
   motorGroupL.setStopping(coast);
   motorGroupR.setStopping(coast);
+  outtake_move.setStopping(hold);
 }
 
 void driver_control() {
@@ -127,26 +129,50 @@ void driver_control() {
             // Hold position actively against gravity even if the controller is not being physically touched at the moment
             dr4b.stop();
         }
+        
+
+        // intake
         if (Controller1.ButtonL1.pressing()) {
             intake.setVelocity(100, percent);
             intake.spin(forward);
+        }
+        else if (Controller1.ButtonL2.pressing()) {
+            intake.setVelocity(100, percent);
+            intake.spin(reverse);
         } else {
             intake.stop();
         }
 
-        if (Controller1.ButtonL2.pressing()) {
+        // outtake
+        if (Controller1.ButtonX.pressing()) {
             outtake.setVelocity(100, percent);
             outtake.spin(forward);
-        } else {
+        }
+
+        else {
             outtake.stop();
+        }
+
+        if (Controller1.ButtonY.pressing()) {
+            outtake_move.setVelocity(100, percent);
+            outtake_move.spin(forward);
+        }
+
+        if (Controller1.ButtonB.pressing()) {
+            outtake_move.setVelocity(100, percent);
+            outtake_move.spin(reverse);
+        }
+
+        else {
+            outtake_move.stop();
         }
 
         // Brief delay to give time to the brain scheduler
         wait(20, msec); // basically used to not overload the brain with too many commands at one given moment in time
     }
 }
-<<<<<<< HEAD
-int main() {
+
+void comp() {
     Competition.autonomous(runAuton);
     Competition.drivercontrol(driver_control);
     
@@ -158,5 +184,9 @@ int main() {
         wait(100,msec);
     }
 }
-=======
->>>>>>> 1280f316c37c556ef726ba42e9b864369d38b258
+
+int main() {
+    // comp()
+    driver_control();
+    return 0;
+}
