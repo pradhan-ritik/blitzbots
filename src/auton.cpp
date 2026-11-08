@@ -10,8 +10,8 @@ static const int LIFT_SPEED = 60;        // percent, auton can push harder
 static const int DRIVE_SPEED = 60;       // percent
 
 // Waypoints: measure these on the real field, in order.
-static const double TO_GOAL1_IN = 24.0;  // start -> goal 1
-static const double GOAL1_TO_GOAL2_IN = 30.0; // goal 1 -> goal 2
+static const double TO_GOAL1_IN = 30.0;  // start -> goal 1
+static const double GOAL1_TO_GOAL2_IN = 60.0; // goal 1 -> goal 2
 static const double PARK_BACK_IN = 12.0; // final reposition off the wall
 
 // TODO: define your intake/outtake motors in main.cpp, then uncomment:
@@ -44,13 +44,17 @@ static void lowerToBottom() {
 static void scorePins(int count) {
   outtake.setVelocity(100, percent);
   outtake.spin(forward);
-  wait(200,msec);
+  wait(200*count,msec);
   outtake.stop();
 }
 
 static void collectPins() {
   intake.setVelocity(100, percent);
   intake.spin(forward); // No wait-time because intake is continuously moving throughout the autonomous period.
+}
+static void gotoPins() {
+  drive.driveFor(forward, 40.5, inches, true);
+  drive.turnFor(left,90,degrees,true);
 }
 
 // }
@@ -66,15 +70,19 @@ void runAuton() {
 
   // --- Goal 1: drive, lift, score 3 pins ---
   collectPins();
+  gotoPins();
   drive.driveFor(forward, TO_GOAL1_IN, inches, true);
   raiseToTop();
   scorePins(3);
-  lowerToBottom();
 
-  // --- Goal 2: drive, lift, score 3 pins ---
+  dr4b.setVelocity(LIFT_SPEED, percent);
+  dr4b.spinToPosition(BOTTOM_DEG, rotationUnits::deg, false);
+  drive.turnFor(right,180,degrees,true);
+
   drive.driveFor(forward, GOAL1_TO_GOAL2_IN, inches, true);
-  raiseToTop();
+  dr4b.spinToPosition(TOP_DEG, rotationUnits::deg, true);
   scorePins(3);
+
   lowerToBottom();
 
   // --- Park: back off the wall so AWP condition 3 holds ---
