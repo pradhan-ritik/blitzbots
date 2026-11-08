@@ -4,12 +4,12 @@
 		"json": 2
 	},
 	"project": {
-		"name": "blitzproject2",
+		"name": "Competition",
 		"description": "",
 		"creationDate": "9/12/2026, 11:22:44 AM",
 		"platform": "V5",
 		"language": "cpp",
-		"slot": 1,
+		"slot": 3,
 		"sdkVersion": "V5_20240802_15_00_00",
 		"cpp": {
 			"includePath": [],
