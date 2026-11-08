@@ -1,4 +1,5 @@
 #pragma once
-// Lift-only autonomous: raises and lowers the DR4B twice.
-// No drivetrain movement. Call runAuton() from your autonomous slot.
+// Autonomous routine: scores 1 pin in each of 2 goals,
+// using the inertial sensor for turns and straight drives.
 void runAuton();
+void levelDr4b();
