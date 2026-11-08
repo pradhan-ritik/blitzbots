@@ -18,6 +18,7 @@ brain Brain;
 // Controller
 controller Controller1 = controller(primary);
 
+// NOTE: the ports below need to be changed to match how the robot is currently wired
 // Motor definitions (Reversed direction booleans)
 motor motorR1 = motor(PORT5, ratio6_1, true);
 motor motorR2 = motor(PORT14, ratio6_1, true);
@@ -28,6 +29,7 @@ motor dr4bL = motor(PORT17, ratio36_1, true);
 motor intake = motor(PORT19, ratio18_1, false);
 motor outtake = motor(PORT20, ratio18_1, true);
 motor outtake_move = motor(PORT10, ratio18_1, false);
+inertial imu = inertial(PORT3);
 // Motor groups
 motor_group motorGroupR = motor_group(motorR1, motorR2);
 motor_group motorGroupL = motor_group(motorL1, motorL2);
@@ -35,23 +37,55 @@ motor_group dr4b = motor_group(dr4bR, dr4bL);
 
 // Drivetrain setup
 drivetrain drive(motorGroupL, motorGroupR, 8.639, 12.75, 8.5, distanceUnits::in, 0.6);
+const int DR4B_R_TRIM_MS = 200; // how long dr4bR is raised at startup to level it with dr4bL
+bool preAutonRunning = false; // true while comp() is still running pre_auton
+
+// Levels the right side once. Motors can't move while the field has the robot
+// disabled, so if pre_auton is too early this runs at the start of auton instead.
+void levelDr4b() {
+  static bool leveled = false;
+  if (leveled || !Competition.isEnabled()) return;
+
+  dr4b.setStopping(hold);
+  dr4bR.setVelocity(20, percent);
+  dr4bR.spin(forward);
+  wait(DR4B_R_TRIM_MS, msec);
+  dr4bR.stop();
+  leveled = true;
+}
+
 void pre_auton() {
+  // Level the right side first, so both sides zero at the same height
+  levelDr4b();
+
   // Reset motor positions and set stopping modes
   dr4b.resetPosition();
-  dr4b.setStopping(hold);
   motorGroupL.setStopping(coast);
   motorGroupR.setStopping(coast);
   outtake_move.setStopping(hold);
+
+  // Robot must stay still for about 2 seconds while this runs
+  imu.calibrate();
+  while (imu.isCalibrating()) {
+    wait(20, msec);
+  }
 }
 
 void driver_control() {
+    // With no field connected this starts right away, so let pre_auton finish first
+    while (preAutonRunning) {
+        wait(20, msec);
+    }
+
     motorGroupL.setStopping(coast); // not a sudden stop, but moves forward with the momentum it has before coming to a rest.
     motorGroupR.setStopping(coast); // not a sudden stop, but moves forward with the momentum it has before coming to a rest.
     dr4b.setStopping(hold); // if not being adjusted by the controller, the dr4b will not fall due to gravity, rather hold.
     int deadband = 5;
     int liftSpeed = 40; // May be adjusted up to 60% (in the range 40-60, depending on driver preference)
-    double BOTTOM_LIMIT_DEG = -1.0; // Deg threshold near bottom rest for dr4b
-    double TOP_LIMIT_DEG = 540.0;  // Deg threshold near top extension for dr4b
+    double BOTTOM_LIMIT_DEG = 0.0; // Deg threshold near bottom rest for dr4b
+    double TOP_LIMIT_DEG = 1280.0;  // Deg threshold near top extension for dr4b
+    bool outtakeHolding = false; // true while the outtake is spinning to keep a pin
+    bool lastButtonA = false; // used to toggle once per press of A
 
     while (true) {
         // --- READ JOYSTICKS & SCALE TO 75% MAX SPEED ---
@@ -64,6 +98,9 @@ void driver_control() {
 
         Controller1.Screen.setCursor(2, 1);
         Controller1.Screen.print("Turn Vel: %d%%   ", turnSpeed); // move to line 2 to print fwd motion for testing
+
+        Controller1.Screen.setCursor(3, 1);
+        Controller1.Screen.print("Aim:%.0f Lift:%.0f   ", outtake_move.position(rotationUnits::deg), dr4b.position(rotationUnits::deg)); // line 3 is for finding the auton aim and lift angles
 
         // Split-Arcade calculation
         int leftVelocity  = forwardSpeed - turnSpeed;
@@ -103,25 +140,14 @@ void driver_control() {
         // dr4b
         double currentPosition = dr4b.position(rotationUnits::deg);
 
-        if (Controller1.ButtonR1.pressing()) {
-            // if (currentPosition >= TOP_LIMIT_DEG) {
-            //     dr4b.stop(); // Prevent moving up past maximum height in degrees
-            // } else {
-                dr4b.setVelocity(liftSpeed, percent); // makes sure that the dr4b only goes to a max of 40%
-                dr4b.spin(forward);
-            }
-        // } 
+        if (Controller1.ButtonR1.pressing() && currentPosition < TOP_LIMIT_DEG) { // Prevent moving up past maximum height in degrees
+            dr4b.setVelocity(liftSpeed, percent); // makes sure that the dr4b only goes to a max of 40%
+            dr4b.spin(forward);
+        }
 
-        else if (Controller1.ButtonR2.pressing()) {
-            // Lower each side to its own bottom limit so both sides end up even
-            // if (dr4bR.position(rotationUnits::deg) > BOTTOM_LIMIT_DEG) {
+        else if (Controller1.ButtonR2.pressing() && currentPosition > BOTTOM_LIMIT_DEG) { // Prevent moving down past the bottom rest
             dr4b.setVelocity(liftSpeed, percent);
             dr4b.spin(reverse);
-            // } else {
-            //     dr4bR.stop();
-            // }
-            // if (dr4bL.position(rotationUnits::deg) > BOTTOM_LIMIT_DEG) {
-
         }
 
 
@@ -143,10 +169,22 @@ void driver_control() {
             intake.stop();
         }
 
-        // outtake
+        // outtake: A toggles holding a pin, X scores it
+        bool buttonA = Controller1.ButtonA.pressing();
+        if (buttonA && !lastButtonA) {
+            outtakeHolding = !outtakeHolding;
+        }
+        lastButtonA = buttonA;
+
         if (Controller1.ButtonX.pressing()) {
+            outtakeHolding = false; // stays stopped after scoring so the pin isn't pulled back in
             outtake.setVelocity(100, percent);
             outtake.spin(forward);
+        }
+
+        else if (outtakeHolding) {
+            outtake.setVelocity(100, percent);
+            outtake.spin(reverse);
         }
 
         else {
@@ -158,7 +196,7 @@ void driver_control() {
             outtake_move.spin(forward);
         }
 
-        if (Controller1.ButtonB.pressing()) {
+        else if (Controller1.ButtonB.pressing()) {
             outtake_move.setVelocity(100, percent);
             outtake_move.spin(reverse);
         }
@@ -173,11 +211,13 @@ void driver_control() {
 }
 
 void comp() {
+    preAutonRunning = true;
     Competition.autonomous(runAuton);
     Competition.drivercontrol(driver_control);
     
     // Run the pre-autonomous function
     pre_auton();
+    preAutonRunning = false;
     
     // Prevent main from exiting with an infinite loop
     while (true) {
@@ -186,7 +226,11 @@ void comp() {
 }
 
 int main() {
-    // comp()
-    driver_control();
+    // Driver control only (no competition switch or field needed):
+    // comment out comp() below and uncomment these two lines.
+    // pre_auton();
+    // driver_control();
+
+    comp();
     return 0;
 }
