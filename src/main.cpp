@@ -108,8 +108,6 @@ void driver_control() {
     dr4b.setStopping(hold); // if not being adjusted by the controller, the dr4b will not fall due to gravity, rather hold.
     dr4b.setMaxTorque(LIFT_MAX_TORQUE, percent);
     int deadband = 5;
-    bool outtakeHolding = false; // true while the outtake is spinning to keep a pin
-    bool lastButtonA = false; // used to toggle once per press of A
 
     while (true) {
         // --- READ JOYSTICKS & SCALE TO 75% MAX SPEED ---
@@ -185,20 +183,13 @@ void driver_control() {
             intake.stop();
         }
 
-        // outtake: A toggles holding a pin, X scores it
-        bool buttonA = Controller1.ButtonA.pressing();
-        if (buttonA && !lastButtonA) {
-            outtakeHolding = !outtakeHolding;
-        }
-        lastButtonA = buttonA;
-
+        // outtake: hold X to score a pin, hold A to keep a pin in. Both stop when released.
         if (Controller1.ButtonX.pressing()) {
-            outtakeHolding = false; // stays stopped after scoring so the pin isn't pulled back in
             outtake.setVelocity(100, percent);
             outtake.spin(forward);
         }
 
-        else if (outtakeHolding) {
+        else if (Controller1.ButtonA.pressing()) {
             outtake.setVelocity(100, percent);
             outtake.spin(reverse);
         }
