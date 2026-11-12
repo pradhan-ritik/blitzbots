@@ -167,8 +167,8 @@ void driver_control() {
         driveLiftSide(dr4bL, liftDir);
 
         // Brain screen: lift diagnostics. ~2.5 A while stuck = motors maxed out (mechanical problem).
-        Brain.Screen.printAt(10, 40, "R  pos %5.0f  amps %4.2f  temp %3.0fC   ", dr4bR.position(rotationUnits::deg), dr4bR.current(currentUnits::amp), dr4bR.temperature(temperatureUnits::celsius));
-        Brain.Screen.printAt(10, 70, "L  pos %5.0f  amps %4.2f  temp %3.0fC   ", dr4bL.position(rotationUnits::deg), dr4bL.current(currentUnits::amp), dr4bL.temperature(temperatureUnits::celsius));
+        Brain.Screen.printAt(10, 100, "R  pos %5.0f  amps %4.2f  temp %3.0fC   ", dr4bR.position(rotationUnits::deg), dr4bR.current(currentUnits::amp), dr4bR.temperature(temperatureUnits::celsius));
+        Brain.Screen.printAt(10, 130, "L  pos %5.0f  amps %4.2f  temp %3.0fC   ", dr4bL.position(rotationUnits::deg), dr4bL.current(currentUnits::amp), dr4bL.temperature(temperatureUnits::celsius));
 
 
         // intake
