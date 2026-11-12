@@ -30,6 +30,18 @@ motor intake = motor(PORT19, ratio18_1, false);
 motor outtake = motor(PORT20, ratio18_1, true);
 motor outtake_move = motor(PORT10, ratio18_1, false);
 inertial imu = inertial(PORT3);
+
+// Sensors. PORTS ARE PLACEHOLDERS until the build team mounts them.
+// Code checks installed() and skips any sensor that isn't plugged in.
+distance pinSensor = distance(PORT11);   // points at the pin held in the outtake
+distance frontSensor = distance(PORT12); // points forward (outtake side) at goals
+
+// AI Vision colors: PLACEHOLDERS (id, red, green, blue, hue range, saturation range).
+// Replace with the values from the AI Vision Utility once the sensor is mounted.
+aivision::colordesc RED_PIN(1, 200, 30, 40, 10.0, 0.2);
+aivision::colordesc BLUE_PIN(2, 30, 70, 200, 10.0, 0.2);
+aivision::colordesc YELLOW_PIN(3, 220, 200, 40, 10.0, 0.2);
+aivision aiVision(PORT13, RED_PIN, BLUE_PIN, YELLOW_PIN);
 // Motor groups
 motor_group motorGroupR = motor_group(motorR1, motorR2);
 motor_group motorGroupL = motor_group(motorL1, motorL2);
@@ -41,8 +53,8 @@ const int DR4B_R_TRIM_MS = 200; // how long dr4bR is raised at startup to level 
 bool preAutonRunning = false; // true while comp() is still running pre_auton
 
 // ===================== DR4B DRIVER TUNABLES (motor degrees, same as line 3 "Lift") =====================
-const double LIFT_TOP_DEG = 1280.0;      // measured before the 12:84 rebuild: re-measure at the top hardstop
-const double LIFT_BOTTOM_DEG = 0.0;      // stop powering down at the bottom hardstop
+const double LIFT_TOP_DEG = 540.0;       // stop going up past this. Keep in sync with TOP_DEG in auton.cpp
+const double LIFT_BOTTOM_DEG = -1.0;     // stop going down past this. Keep in sync with BOTTOM_DEG in auton.cpp
 const double LIFT_REST_ZONE_DEG = 30.0;  // this close to the bottom with no button: unpower and rest on the hardstop
 const double LIFT_SLOW_ZONE_DEG = 140.0; // within this many degrees of the bottom, lower slowly
 const int LIFT_UP_SPEED = 100;           // percent. Lifting fights gravity
@@ -169,6 +181,16 @@ void driver_control() {
         // Brain screen: lift diagnostics. ~2.5 A while stuck = motors maxed out (mechanical problem).
         Brain.Screen.printAt(10, 100, "R  pos %5.0f  amps %4.2f  temp %3.0fC   ", dr4bR.position(rotationUnits::deg), dr4bR.current(currentUnits::amp), dr4bR.temperature(temperatureUnits::celsius));
         Brain.Screen.printAt(10, 130, "L  pos %5.0f  amps %4.2f  temp %3.0fC   ", dr4bL.position(rotationUnits::deg), dr4bL.current(currentUnits::amp), dr4bL.temperature(temperatureUnits::celsius));
+
+        // Sensor readouts for tuning PIN_DETECT_MM, GOAL_SCORE_IN and the vision colors (auton.cpp / above)
+        if (pinSensor.installed()) Brain.Screen.printAt(10, 160, "Pin sensor: %5.0f mm   ", pinSensor.objectDistance(mm));
+        if (frontSensor.installed()) Brain.Screen.printAt(10, 190, "Front: %5.1f in   ", frontSensor.objectDistance(inches));
+        if (aiVision.installed()) {
+            int reds = aiVision.takeSnapshot(RED_PIN);
+            int blues = aiVision.takeSnapshot(BLUE_PIN);
+            int yellows = aiVision.takeSnapshot(YELLOW_PIN);
+            Brain.Screen.printAt(10, 220, "Vision sees R:%d B:%d Y:%d   ", reds, blues, yellows);
+        }
 
 
         // intake
