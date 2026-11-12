@@ -40,6 +40,32 @@ drivetrain drive(motorGroupL, motorGroupR, 8.639, 12.75, 8.5, distanceUnits::in,
 const int DR4B_R_TRIM_MS = 200; // how long dr4bR is raised at startup to level it with dr4bL
 bool preAutonRunning = false; // true while comp() is still running pre_auton
 
+// ===================== DR4B DRIVER TUNABLES (motor degrees, same as line 3 "Lift") =====================
+const double LIFT_TOP_DEG = 1280.0;      // measured before the 12:84 rebuild: re-measure at the top hardstop
+const double LIFT_BOTTOM_DEG = 0.0;      // stop powering down at the bottom hardstop
+const double LIFT_REST_ZONE_DEG = 30.0;  // this close to the bottom with no button: unpower and rest on the hardstop
+const double LIFT_SLOW_ZONE_DEG = 140.0; // within this many degrees of the bottom, lower slowly
+const int LIFT_UP_SPEED = 100;           // percent. Lifting fights gravity
+const int LIFT_DOWN_SPEED = 60;          // percent
+const int LIFT_DOWN_SLOW_SPEED = 30;     // percent. Near the bottom so it doesn't slam
+const int LIFT_MAX_TORQUE = 100;         // percent. Mentor suggested 55-60 to protect motors once the lift is strong enough
+
+// Drive one side of the DR4B. dir: +1 = up, -1 = down, 0 = hold.
+// Each side checks its own encoder, so both sides stop at the same height.
+void driveLiftSide(motor &m, int dir) {
+    double pos = m.position(rotationUnits::deg);
+    if (dir > 0 && pos < LIFT_TOP_DEG) {
+        m.spin(forward, LIFT_UP_SPEED, percent);
+    } else if (dir < 0 && pos > LIFT_BOTTOM_DEG) {
+        int speed = (pos < LIFT_BOTTOM_DEG + LIFT_SLOW_ZONE_DEG) ? LIFT_DOWN_SLOW_SPEED : LIFT_DOWN_SPEED;
+        m.spin(reverse, speed, percent);
+    } else if (pos < LIFT_REST_ZONE_DEG) {
+        m.stop(coast); // at the bottom: let it sit on the hardstop so the motors stay cool
+    } else {
+        m.stop(hold); // anywhere else: hold against gravity
+    }
+}
+
 // Levels the right side once. Motors can't move while the field has the robot
 // disabled, so if pre_auton is too early this runs at the start of auton instead.
 void levelDr4b() {
@@ -80,10 +106,8 @@ void driver_control() {
     motorGroupL.setStopping(coast); // not a sudden stop, but moves forward with the momentum it has before coming to a rest.
     motorGroupR.setStopping(coast); // not a sudden stop, but moves forward with the momentum it has before coming to a rest.
     dr4b.setStopping(hold); // if not being adjusted by the controller, the dr4b will not fall due to gravity, rather hold.
+    dr4b.setMaxTorque(LIFT_MAX_TORQUE, percent);
     int deadband = 5;
-    int liftSpeed = 40; // May be adjusted up to 60% (in the range 40-60, depending on driver preference)
-    double BOTTOM_LIMIT_DEG = 0.0; // Deg threshold near bottom rest for dr4b
-    double TOP_LIMIT_DEG = 1280.0;  // Deg threshold near top extension for dr4b
     bool outtakeHolding = false; // true while the outtake is spinning to keep a pin
     bool lastButtonA = false; // used to toggle once per press of A
 
@@ -137,25 +161,17 @@ void driver_control() {
         }
         // deadband (currently set to 5) ensures that a negligible touch on the controller will not impact the position of the robot.
         
-        // dr4b
-        double currentPosition = dr4b.position(rotationUnits::deg);
+        // --- DR4B: R1 = up, R2 = down, neither = hold ---
+        int liftDir = 0;
+        if (Controller1.ButtonR1.pressing()) liftDir = 1;
+        else if (Controller1.ButtonR2.pressing()) liftDir = -1;
+        driveLiftSide(dr4bR, liftDir);
+        driveLiftSide(dr4bL, liftDir);
 
-        if (Controller1.ButtonR1.pressing() && currentPosition < TOP_LIMIT_DEG) { // Prevent moving up past maximum height in degrees
-            dr4b.setVelocity(liftSpeed, percent); // makes sure that the dr4b only goes to a max of 40%
-            dr4b.spin(forward);
-        }
+        // Brain screen: lift diagnostics. ~2.5 A while stuck = motors maxed out (mechanical problem).
+        Brain.Screen.printAt(10, 40, "R  pos %5.0f  amps %4.2f  temp %3.0fC   ", dr4bR.position(rotationUnits::deg), dr4bR.current(currentUnits::amp), dr4bR.temperature(temperatureUnits::celsius));
+        Brain.Screen.printAt(10, 70, "L  pos %5.0f  amps %4.2f  temp %3.0fC   ", dr4bL.position(rotationUnits::deg), dr4bL.current(currentUnits::amp), dr4bL.temperature(temperatureUnits::celsius));
 
-        else if (Controller1.ButtonR2.pressing() && currentPosition > BOTTOM_LIMIT_DEG) { // Prevent moving down past the bottom rest
-            dr4b.setVelocity(liftSpeed, percent);
-            dr4b.spin(reverse);
-        }
-
-
-        else {
-            // Hold position actively against gravity even if the controller is not being physically touched at the moment
-            dr4b.stop();
-        }
-        
 
         // intake
         if (Controller1.ButtonL1.pressing()) {
