@@ -49,7 +49,6 @@ motor_group dr4b = motor_group(dr4bR, dr4bL);
 
 // Drivetrain setup
 drivetrain drive(motorGroupL, motorGroupR, 8.639, 12.75, 8.5, distanceUnits::in, 0.6);
-const int DR4B_R_TRIM_MS = 200; // how long dr4bR is raised at startup to level it with dr4bL
 bool preAutonRunning = false; // true while comp() is still running pre_auton
 
 // ===================== DR4B DRIVER TUNABLES (motor degrees, same as line 3 "Lift") =====================
@@ -78,24 +77,7 @@ void driveLiftSide(motor &m, int dir) {
     }
 }
 
-// Levels the right side once. Motors can't move while the field has the robot
-// disabled, so if pre_auton is too early this runs at the start of auton instead.
-void levelDr4b() {
-  static bool leveled = false;
-  if (leveled || !Competition.isEnabled()) return;
-
-  dr4b.setStopping(hold);
-  dr4bR.setVelocity(20, percent);
-  dr4bR.spin(forward);
-  wait(DR4B_R_TRIM_MS, msec);
-  dr4bR.stop();
-  leveled = true;
-}
-
 void pre_auton() {
-  // Level the right side first, so both sides zero at the same height
-  levelDr4b();
-
   // Reset motor positions and set stopping modes
   dr4b.resetPosition();
   motorGroupL.setStopping(coast);
