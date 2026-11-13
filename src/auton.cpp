@@ -5,7 +5,8 @@ using namespace vex;
 
 // ===================== TUNABLES (set these on the field) =====================
 static const double TOP_DEG = 540.0;     // lift top soft limit (deg). Keep in sync with LIFT_TOP_DEG in main.cpp
-static const double BOTTOM_DEG = -1.0;   // lift bottom soft limit (deg). Keep in sync with LIFT_BOTTOM_DEG in main.cpp
+static const double BOTTOM_DEG = 0.0;    // lift bottom target (deg). 0 = where it started, so spinToPosition can always finish
+                                         // (-1 like driver control could stall against the hardstop until LIFT_TIMEOUT_MS)
 static const int LIFT_SPEED = 100;       // percent. 4 lift moves at 60% would blow past the 15 s auton
 static const int LIFT_TIMEOUT_MS = 4500; // longer than a full lift move, so only a stall hits it
 static const int AIM_SPEED = 50;         // percent
@@ -240,7 +241,6 @@ void runAuton() {
 
   waitUntil(!imu.isCalibrating());
   imu.setRotation(0, degrees);
-  levelDr4b();
   dr4b.resetPosition();
   outtake_move.resetPosition();
   dr4b.setStopping(hold);
