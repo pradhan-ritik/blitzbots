@@ -37,27 +37,9 @@ motor_group dr4b = motor_group(dr4bR, dr4bL);
 
 // Drivetrain setup
 drivetrain drive(motorGroupL, motorGroupR, 8.639, 12.75, 8.5, distanceUnits::in, 0.6);
-const int DR4B_R_TRIM_MS = 200; // how long dr4bR is raised at startup to level it with dr4bL
 bool preAutonRunning = false; // true while comp() is still running pre_auton
 
-// Levels the right side once. Motors can't move while the field has the robot
-// disabled, so if pre_auton is too early this runs at the start of auton instead.
-void levelDr4b() {
-  static bool leveled = false;
-  if (leveled || !Competition.isEnabled()) return;
-
-  dr4b.setStopping(hold);
-  dr4bR.setVelocity(20, percent);
-  dr4bR.spin(forward);
-  wait(DR4B_R_TRIM_MS, msec);
-  dr4bR.stop();
-  leveled = true;
-}
-
 void pre_auton() {
-  // Level the right side first, so both sides zero at the same height
-  levelDr4b();
-
   // Reset motor positions and set stopping modes
   dr4b.resetPosition();
   motorGroupL.setStopping(coast);
@@ -81,9 +63,7 @@ void driver_control() {
     motorGroupR.setStopping(coast); // not a sudden stop, but moves forward with the momentum it has before coming to a rest.
     dr4b.setStopping(hold); // if not being adjusted by the controller, the dr4b will not fall due to gravity, rather hold.
     int deadband = 5;
-    int liftSpeed = 40; // May be adjusted up to 60% (in the range 40-60, depending on driver preference)
-    double BOTTOM_LIMIT_DEG = 0.0; // Deg threshold near bottom rest for dr4b
-    double TOP_LIMIT_DEG = 1280.0;  // Deg threshold near top extension for dr4b
+    int liftSpeed = 70; // May be adjusted up to 60% (in the range 40-60, depending on driver preference)
     bool outtakeHolding = false; // true while the outtake is spinning to keep a pin
     bool lastButtonA = false; // used to toggle once per press of A
 
@@ -93,11 +73,12 @@ void driver_control() {
         int turnSpeed    = static_cast<int>(Controller1.Axis1.position() * 0.75); // x axis
 
         // Telemetry display on Controller Screen
+        // TEMP dr4b debug: each lift motor's angle (line 1) and current draw in amps (line 2)
         Controller1.Screen.setCursor(1, 1);
-        Controller1.Screen.print("Fwd Vel:  %d%%   ", forwardSpeed); // move to line 1 to print fwd motion for testing
+        Controller1.Screen.print("R:%.0f L:%.0f      ", dr4bR.position(rotationUnits::deg), dr4bL.position(rotationUnits::deg));
 
         Controller1.Screen.setCursor(2, 1);
-        Controller1.Screen.print("Turn Vel: %d%%   ", turnSpeed); // move to line 2 to print fwd motion for testing
+        Controller1.Screen.print("RA:%.1f LA:%.1f    ", dr4bR.current(currentUnits::amp), dr4bL.current(currentUnits::amp));
 
         Controller1.Screen.setCursor(3, 1);
         Controller1.Screen.print("Aim:%.0f Lift:%.0f   ", outtake_move.position(rotationUnits::deg), dr4b.position(rotationUnits::deg)); // line 3 is for finding the auton aim and lift angles
@@ -138,14 +119,26 @@ void driver_control() {
         // deadband (currently set to 5) ensures that a negligible touch on the controller will not impact the position of the robot.
         
         // dr4b
-        double currentPosition = dr4b.position(rotationUnits::deg);
+        // TEMP direction test: Up arrow spins only dr4bR forward, Right arrow spins only dr4bL forward.
+        // Tap briefly. Each should move its side of the lift UP. Remove once the lift works.
+        if (Controller1.ButtonUp.pressing()) {
+            dr4bR.setVelocity(20, percent);
+            dr4bR.spin(forward);
+            dr4bL.stop();
+        }
 
-        if (Controller1.ButtonR1.pressing() && currentPosition < TOP_LIMIT_DEG) { // Prevent moving up past maximum height in degrees
+        else if (Controller1.ButtonRight.pressing()) {
+            dr4bL.setVelocity(20, percent);
+            dr4bL.spin(forward);
+            dr4bR.stop();
+        }
+
+        else if (Controller1.ButtonR1.pressing()) {
             dr4b.setVelocity(liftSpeed, percent); // makes sure that the dr4b only goes to a max of 40%
             dr4b.spin(forward);
         }
 
-        else if (Controller1.ButtonR2.pressing() && currentPosition > BOTTOM_LIMIT_DEG) { // Prevent moving down past the bottom rest
+        else if (Controller1.ButtonR2.pressing()) {
             dr4b.setVelocity(liftSpeed, percent);
             dr4b.spin(reverse);
         }
@@ -226,11 +219,16 @@ void comp() {
 }
 
 int main() {
+    // TEMP: shows which build is running, so an old program can't be mistaken for this one
+    Brain.Screen.setFont(fontType::mono40);
+    Brain.Screen.printAt(20, 80, "LIFT TEST BUILD");
+    Controller1.Screen.clearScreen();
+
     // Driver control only (no competition switch or field needed):
     // comment out comp() below and uncomment these two lines.
-    // pre_auton();
-    // driver_control();
+    pre_auton();
+    driver_control();
 
-    comp();
+    // comp();
     return 0;
 }

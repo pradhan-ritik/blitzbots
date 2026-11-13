@@ -195,7 +195,6 @@ void runAuton() {
 
   waitUntil(!imu.isCalibrating());
   imu.setRotation(0, degrees);
-  levelDr4b();
   dr4b.resetPosition();
   outtake_move.resetPosition();
   dr4b.setStopping(hold);
