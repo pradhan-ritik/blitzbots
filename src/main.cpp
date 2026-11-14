@@ -112,6 +112,9 @@ void driver_control() {
     dr4b.setVelocity(100, percent); // lift speed for R1/R2 below (was a stray line at file level, which doesn't compile)
     dr4b.setMaxTorque(LIFT_MAX_TORQUE, percent);
     int deadband = 5;
+    bool outtakeForward = false; // false = reverse (hold pin), true = forward (score)
+    bool aWasPressed = false;    // for detecting a new A press, not a held one
+    bool outtakeStopped = false; // set by the down arrow, cleared by A
     while (true) {
         // --- READ JOYSTICKS & SCALE TO 75% MAX SPEED ---
         int forwardSpeed = static_cast<int>(curve(Controller1.Axis3.position(), 0.6) * 0.75); // y Axis (max 100, min -100) -> 0.75 to maintain control over the robot and not have a volatile shift over a small touch.
@@ -198,19 +201,22 @@ void driver_control() {
             intake.stop();
         }
 
-        // outtake: hold X to score a pin, hold A to keep a pin in. Both stop when released.
-        if (Controller1.ButtonX.pressing()) {
-            outtake.setVelocity(100, percent);
-            outtake.spin(forward);
+        // outtake: always spinning. Press A to flip direction (and restart it if stopped).
+        // Starts in reverse (keeps a pin in); forward scores it. Down arrow stops it.
+        bool aPressed = Controller1.ButtonA.pressing();
+        if (aPressed && !aWasPressed) {
+            outtakeForward = !outtakeForward;
+            outtakeStopped = false;
         }
-
-        else if (Controller1.ButtonA.pressing()) {
-            outtake.setVelocity(100, percent);
-            outtake.spin(reverse);
+        aWasPressed = aPressed;
+        if (Controller1.ButtonDown.pressing()) {
+            outtakeStopped = true;
         }
-
-        else {
+        if (outtakeStopped) {
             outtake.stop();
+        } else {
+            outtake.setVelocity(100, percent);
+            outtake.spin(outtakeForward ? forward : reverse);
         }
 
         if (Controller1.ButtonY.pressing()) {
