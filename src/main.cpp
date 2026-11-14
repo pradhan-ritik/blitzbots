@@ -21,15 +21,16 @@ controller Controller1 = controller(primary);
 // NOTE: the ports below need to be changed to match how the robot is currently wired
 // Motor definitions (Reversed direction booleans)
 motor motorR1 = motor(PORT5, ratio6_1, true);
-motor motorR2 = motor(PORT14, ratio6_1, true);
-motor motorL1 = motor(PORT9, ratio6_1, false);
-motor motorL2 = motor(PORT6, ratio6_1, false);
-motor dr4bR = motor(PORT16, ratio36_1, false);
-motor dr4bL = motor(PORT17, ratio36_1, true);
-motor intake = motor(PORT19, ratio18_1, false);
-motor outtake = motor(PORT20, ratio18_1, true);
-motor outtake_move = motor(PORT10, ratio18_1, false);
-inertial imu = inertial(PORT3);
+motor motorR2 = motor(PORT14, ratio6_1, true); 
+motor motorL1 = motor(PORT8, ratio6_1, false); 
+motor motorL2 = motor(PORT6, ratio6_1, false); 
+motor dr4bR = motor(PORT16, ratio36_1, false); 
+motor dr4bL = motor(PORT17, ratio36_1, true); 
+motor intake = motor(PORT19, ratio18_1, false); 
+motor outtake = motor(PORT2, ratio18_1, true); 
+motor outtake_move = motor(PORT10, ratio18_1, false); 
+inertial imu = inertial(PORT3); 
+aivision AIVision = aivision(PORT13); 
 
 // Sensors. PORTS ARE PLACEHOLDERS until the build team mounts them.
 // Code checks installed() and skips any sensor that isn't plugged in.
@@ -52,7 +53,7 @@ drivetrain drive(motorGroupL, motorGroupR, 8.639, 12.75, 8.5, distanceUnits::in,
 bool preAutonRunning = false; // true while comp() is still running pre_auton
 
 // ===================== DR4B DRIVER TUNABLES (motor degrees, same as line 3 "Lift") =====================
-const double LIFT_TOP_DEG = 540.0;       // stop going up past this. Keep in sync with TOP_DEG in auton.cpp
+const double LIFT_TOP_DEG = 720.0;       // stop going up past this. Keep in sync with TOP_DEG in auton.cpp
 const double LIFT_BOTTOM_DEG = -1.0;     // stop going down past this. Keep in sync with BOTTOM_DEG in auton.cpp
 const double LIFT_REST_ZONE_DEG = 30.0;  // this close to the bottom with no button: unpower and rest on the hardstop
 const double LIFT_SLOW_ZONE_DEG = 140.0; // within this many degrees of the bottom, lower slowly
@@ -61,6 +62,8 @@ const int LIFT_DOWN_SPEED = 60;          // percent
 const int LIFT_DOWN_SLOW_SPEED = 30;     // percent. Near the bottom so it doesn't slam
 const int LIFT_MAX_TORQUE = 100;         // percent. Mentor suggested 55-60 to protect motors once the lift is strong enough
 
+// NOTE: driveLiftSide() is not called right now. Driver control uses the simple
+// dr4b.spin() version below (no soft limits). Keep this for when limits are added back.
 // Drive one side of the DR4B. dir: +1 = up, -1 = down, 0 = hold.
 // Each side checks its own encoder, so both sides stop at the same height.
 void driveLiftSide(motor &m, int dir) {
@@ -90,6 +93,12 @@ void pre_auton() {
     wait(20, msec);
   }
 }
+// Cubic blend: small stick movements stay gentle, full stick still gives full speed.
+// k = 0 is linear, k = 1 is fully cubic. Raise it for a softer center.
+double curve(double input, double k) {
+    double x = input / 100.0;
+    return 100.0 * (k * x * x * x + (1.0 - k) * x);
+}
 
 void driver_control() {
     // With no field connected this starts right away, so let pre_auton finish first
@@ -100,13 +109,13 @@ void driver_control() {
     motorGroupL.setStopping(coast); // not a sudden stop, but moves forward with the momentum it has before coming to a rest.
     motorGroupR.setStopping(coast); // not a sudden stop, but moves forward with the momentum it has before coming to a rest.
     dr4b.setStopping(hold); // if not being adjusted by the controller, the dr4b will not fall due to gravity, rather hold.
+    dr4b.setVelocity(100, percent); // lift speed for R1/R2 below (was a stray line at file level, which doesn't compile)
     dr4b.setMaxTorque(LIFT_MAX_TORQUE, percent);
     int deadband = 5;
-
     while (true) {
         // --- READ JOYSTICKS & SCALE TO 75% MAX SPEED ---
-        int forwardSpeed = static_cast<int>(Controller1.Axis3.position() * 0.75); // y Axis (max 100, min -100) -> 0.75 to maintain control over the robot and not have a volatile shift over a small touch.
-        int turnSpeed    = static_cast<int>(Controller1.Axis1.position() * 0.75); // x axis
+        int forwardSpeed = static_cast<int>(curve(Controller1.Axis3.position(), 0.6) * 0.75); // y Axis (max 100, min -100) -> 0.75 to maintain control over the robot and not have a volatile shift over a small touch.
+        int turnSpeed    = static_cast<int>(curve(Controller1.Axis1.position(), 0.7) * 0.5); // x axis
 
         // Telemetry display on Controller Screen
         Controller1.Screen.setCursor(1, 1);
@@ -154,11 +163,13 @@ void driver_control() {
         // deadband (currently set to 5) ensures that a negligible touch on the controller will not impact the position of the robot.
         
         // --- DR4B: R1 = up, R2 = down, neither = hold ---
-        int liftDir = 0;
-        if (Controller1.ButtonR1.pressing()) liftDir = 1;
-        else if (Controller1.ButtonR2.pressing()) liftDir = -1;
-        driveLiftSide(dr4bR, liftDir);
-        driveLiftSide(dr4bL, liftDir);
+        if (Controller1.ButtonR1.pressing()) {
+            dr4b.spin(forward);   // lift goes up
+        } else if (Controller1.ButtonR2.pressing()) {
+            dr4b.spin(reverse);   // lift goes down
+        } else {
+            dr4b.stop();          // holds position
+        }
 
         // Brain screen: lift diagnostics. ~2.5 A while stuck = motors maxed out (mechanical problem).
         Brain.Screen.printAt(10, 100, "R  pos %5.0f  amps %4.2f  temp %3.0fC   ", dr4bR.position(rotationUnits::deg), dr4bR.current(currentUnits::amp), dr4bR.temperature(temperatureUnits::celsius));

@@ -4,7 +4,7 @@
 using namespace vex;
 
 // ===================== TUNABLES (set these on the field) =====================
-static const double TOP_DEG = 540.0;     // lift top soft limit (deg). Keep in sync with LIFT_TOP_DEG in main.cpp
+static const double TOP_DEG = 720.0;     // lift top soft limit (deg). Keep in sync with LIFT_TOP_DEG in main.cpp
 static const double BOTTOM_DEG = 0.0;    // lift bottom target (deg). 0 = where it started, so spinToPosition can always finish
                                          // (-1 like driver control could stall against the hardstop until LIFT_TIMEOUT_MS)
 static const int LIFT_SPEED = 100;       // percent. 4 lift moves at 60% would blow past the 15 s auton
@@ -227,7 +227,7 @@ static void loadPin() {
 }
 
 static void gotoPins() {
-  driveStraight(-TO_PINS_IN, 0.0, 2500); // reverse so the rear intake leads
+  driveStraight(TO_PINS_IN, 0.0, 2500);
   turnTo(HEADING_GOAL1, 1200);
 }
 
