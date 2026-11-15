@@ -20,7 +20,7 @@ static const int SCORE_MS = 400;          // time the outtake spins the opposite
 static const int OUTTAKE_SPEED = 60;      // percent
 // Swap these two if the outtake pushes the pin out at pickup
 static const directionType OUTTAKE_HOLD_DIR = directionType::rev;
-static const directionType OUTTAKE_SCORE_DIR = directionType::rev;
+static const directionType OUTTAKE_SCORE_DIR = directionType::fwd;
 
 // ===================== ROUTINES (one per starting spot) =====================
 // Each starting spot gets its own numbers, so tune each one on the field.
@@ -88,6 +88,7 @@ static const double GOAL_SCORE_IN = 6.0;  // frontSensor distance to a goal when
 // The camera is on a side bar, off to one side of the outtake, so the right x changes with distance:
 // set each one with the robot parked where it does that line-up (just after turning toward
 // that goal), aimed at the goal by hand. Read "Tag ... x:" off line 2 of the controller.
+static const int AUTON_GOAL_TAG = -1;       // AprilTag ID on the goal you score in (-1 = any tag, nearest center)
 static const int TAG_TARGET_X_GOAL1 = 160;
 static const int TAG_TARGET_X_GOAL2 = 160;
 static const double TAG_TURN_KP = 0.25;       // percent turn speed per pixel off center
@@ -105,7 +106,8 @@ extern competition Competition;
 extern motor outtake_move;
 extern motor outtake;
 extern motor intake;
-extern motor_group dr4b;
+extern motor dr4bL;
+extern motor dr4bR;
 extern motor_group motorGroupR;
 extern motor_group motorGroupL;
 extern inertial imu;
@@ -265,8 +267,10 @@ static double lineUpOnTag(int tagId, int targetX, double fallbackHeading) {
 
 // ---- Lift helpers ----
 static void liftTo(double targetDeg) {
-  dr4b.setVelocity(LIFT_SPEED, percent);
-  dr4b.spinToPosition(targetDeg, rotationUnits::deg, false);
+  dr4bR.setVelocity(LIFT_SPEED, percent);
+  dr4bL.setVelocity(LIFT_SPEED,percent);
+  dr4bR.spinToPosition(targetDeg, rotationUnits::deg, false);
+  dr4bL.spinToPosition(targetDeg, rotationUnits::deg, false);
 }
 
 static void aimTo(double targetDeg) {
@@ -275,13 +279,13 @@ static void aimTo(double targetDeg) {
 }
 
 // Gives up at the timeout so a stalled lift can't use up the whole auton.
-static void waitLift(int timeoutMs) {
-  timer elapsed;
-  while (elapsed.time(msec) < timeoutMs && !(dr4b.isDone() && outtake_move.isDone())) {
-    updateIntake();
-    wait(LOOP_MS, msec);
-  }
-}
+// static void waitLift(int timeoutMs) {
+//   timer elapsed;
+//   while (elapsed.time(msec) < timeoutMs && !(dr4bR.isDone() && outtake_move.isDone()))  {
+//     updateIntake();
+//     wait(LOOP_MS, msec);
+//   }
+// }
 
 // ---- Scoring helpers ----
 // The outtake spins one way to pull a pin in and keep it, then the opposite way to score it.
@@ -309,7 +313,7 @@ static void loadPin() {
   holdPin();
   liftTo(BOTTOM_DEG);
   aimTo(AIM_PICKUP_DEG);
-  waitLift(LIFT_TIMEOUT_MS);
+  // waitLift(LIFT_TIMEOUT_MS);
 
   if (pinSensor.installed()) {
     // Wait until the pin actually arrives instead of guessing a time
@@ -401,42 +405,55 @@ void runAutonSelector() {
 // Being rebuilt one step at a time. Right now: raise the lift briefly, drive forward to the first goal, and score the preloaded pin.
 // The lift and outtake_move must start in the same position every match.
 void runAuton() {
-  int routine = selectedRoutine;
+  // int routine = selectedRoutine;
   // Only a real field skips when nothing is picked. The brain's Timed Run may report
   // itself as a competition switch, so a switch isn't treated as a match.
-  bool timedRunDefault = (routine < 0 && !Competition.isFieldControl());
-  if (timedRunDefault) routine = TIMED_RUN_ROUTINE;
+  // bool timedRunDefault = (routine < 0 && !Competition.isFieldControl());
+  // if (timedRunDefault) routine = TIMED_RUN_ROUTINE;
 
   autonStarted = true; // stops the selector so it doesn't draw over auton output
 
   
-  const AutonRoutine &r = ROUTINES[routine];
+  // const AutonRoutine &r = ROUTINES[routine];
   Brain.Screen.clearScreen();
-  Brain.Screen.printAt(10, 20, true, "Auton: %s%s", r.name, timedRunDefault ? " (default, nothing picked)" : "");
+  // Brain.Screen.printAt(10, 20, true, "Auton: %s%s", r.name, timedRunDefault ? " (default, nothing picked)" : "");
   timer autonTimer;
 
   waitUntil(!imu.isCalibrating());
   imu.setRotation(0, degrees);
-  dr4b.resetPosition();
+  dr4bR.resetPosition();
+  dr4bL.resetPosition();
   outtake_move.resetPosition();
-  dr4b.setStopping(hold);
+  dr4bR.setStopping(hold);
+  dr4bL.setStopping(hold);
   outtake_move.setStopping(hold);
   motorGroupL.setStopping(brake);
   motorGroupR.setStopping(brake);
 
   // Start: facing forward (outtake facing out) with a pin already in the outtake.
 
-  // --- Raise the lift a little before moving ---
-  outtake_move.spin(forward, LIFT_SPEED, percent);
+  // --- Keep the pin in the outtake while driving (reverse = hold, same as driver control) ---
+  holdPin();
+
+  // --- Raise the outtake aim a little before moving ---
+  outtake_move.spin(forward, AIM_SPEED, percent);
   wait(LIFT_START_MS, msec);
   outtake_move.stop(); // holds there (stopping mode is hold)
 
   // --- Drive forward to the first goal ---
   // Straight ahead (heading 0). If frontSensor is plugged in, it stops GOAL_SCORE_IN from the goal.
-  driveStraight(10, 0.0, 1000, true);
+  // 10 in is the max distance, so measure the real start -> goal distance and change it.
+  // Vision: turn in place until the goal's AprilTag is centered. lineUpOnTag() returns the IMU
+  // heading it ended on, so the drive below holds that heading. If the camera is unplugged,
+  // can't see the tag, or times out, it returns 0.0 and this runs exactly like before.
+  double goalHeading = lineUpOnTag(AUTON_GOAL_TAG, TAG_TARGET_X_GOAL1, 0.0);
+  driveStraight(10, goalHeading, 1500, true);
 
-  // --- Score the first pin ---
-  outtake.spin(reverse, 100, percent);
-
-  Brain.Screen.printAt(10, 40, "Auton time: %.2f s", autonTimer.time(msec) / 1000.0);
+  // --- Score the first pin (forward = score) ---
+  releasePin(); // spins OUTTAKE_SCORE_DIR for SCORE_MS, then stops
+  if (tagResults[0]) {
+    Brain.Screen.printAt(10, 60, "Tag line-up: OK");
+  } else {
+    Brain.Screen.printAt(10, 60, "Tag line-up: fallback");
+  }
 }

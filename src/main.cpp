@@ -46,8 +46,6 @@ aivision aiVision(PORT13, RED_PIN, BLUE_PIN, YELLOW_PIN, aivision::ALL_TAGS);
 // Motor groups
 motor_group motorGroupR = motor_group(motorR1, motorR2);
 motor_group motorGroupL = motor_group(motorL1, motorL2);
-motor_group dr4b = motor_group(dr4bR, dr4bL);
-
 // Drivetrain setup
 drivetrain drive(motorGroupL, motorGroupR, 8.639, 12.75, 8.5, distanceUnits::in, 0.6);
 bool preAutonRunning = false; // true while comp() is still running pre_auton
@@ -83,7 +81,8 @@ void driveLiftSide(motor &m, int dir) {
 
 void pre_auton() {
   // Reset motor positions and set stopping modes
-  dr4b.resetPosition();
+  dr4bL.resetPosition();
+  dr4bR.resetPosition();
   motorGroupL.setStopping(coast);
   motorGroupR.setStopping(coast);
   outtake_move.setStopping(hold);
@@ -110,9 +109,12 @@ void driver_control() {
 
     motorGroupL.setStopping(coast); // not a sudden stop, but moves forward with the momentum it has before coming to a rest.
     motorGroupR.setStopping(coast); // not a sudden stop, but moves forward with the momentum it has before coming to a rest.
-    dr4b.setStopping(hold); // if not being adjusted by the controller, the dr4b will not fall due to gravity, rather hold.
-    dr4b.setVelocity(50, percent); // lift speed for R1/R2 below (was a stray line at file level, which doesn't compile)
-    dr4b.setMaxTorque(LIFT_MAX_TORQUE, percent);
+    dr4bR.setStopping(hold); // if not being adjusted by the controller, the dr4b will not fall due to gravity, rather hold.
+    dr4bL.setStopping(hold);
+    dr4bL.setVelocity(30, percent); // lift speed for R1/R2 below (was a stray line at file level, which doesn't compile)
+    dr4bR.setVelocity(30, percent);
+    dr4bL.setMaxTorque(LIFT_MAX_TORQUE, percent);
+    dr4bR.setMaxTorque(LIFT_MAX_TORQUE, percent);
     // Erase the auton selector buttons (keeps the auton name/time lines at the top)
     Brain.Screen.setPenColor(black);
     Brain.Screen.setFillColor(black);
@@ -149,7 +151,7 @@ void driver_control() {
         else Controller1.Screen.print("Tag: none          ");
 
         Controller1.Screen.setCursor(3, 1);
-        Controller1.Screen.print("Aim:%.0f Lift:%.0f   ", outtake_move.position(rotationUnits::deg), dr4b.position(rotationUnits::deg)); // line 3 is for finding the auton aim and lift angles
+        Controller1.Screen.print("Aim:%.0f Lift:%.0f   ", outtake_move.position(rotationUnits::deg), dr4bR.position(rotationUnits::deg)), dr4bL.position(rotationUnits::deg); // line 3 is for finding the auton aim and lift angles
 
         // Split-Arcade calculation
         int leftVelocity  = forwardSpeed - turnSpeed;
@@ -188,11 +190,11 @@ void driver_control() {
         
         // --- DR4B: R1 = up, R2 = down, neither = hold ---
         if (Controller1.ButtonR1.pressing()) {
-            dr4b.spin(forward);   // lift goes up
+            dr4bR.spin(forward);   // lift goes up
         } else if (Controller1.ButtonR2.pressing()) {
-            dr4b.spin(reverse);   // lift goes down
+            dr4bR.spin(reverse);   // lift goes down
         } else {
-            dr4b.stop();          // holds position
+            dr4bR.stop();          // holds position
         }
 
         // Brain screen: lift diagnostics. ~2.5 A while stuck = motors maxed out (mechanical problem).
@@ -212,14 +214,19 @@ void driver_control() {
 
         // intake
         if (Controller1.ButtonL1.pressing()) {
-            intake.setVelocity(100, percent);
-            intake.spin(forward);
+            dr4bL.spin(forward);
         }
         else if (Controller1.ButtonL2.pressing()) {
-            intake.setVelocity(100, percent);
-            intake.spin(reverse);
+            dr4bL.spin(reverse);
         } else {
-            intake.stop();
+            dr4bL.stop();
+        }
+
+        if (Controller1.ButtonLeft.pressing()) {
+            intake.spin(forward);
+        }
+        else if (Controller1.ButtonRight.pressing()) {
+            intake.spin(reverse);
         }
 
         // outtake: always spinning. Press A to flip direction (and restart it if stopped).
