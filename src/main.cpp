@@ -26,11 +26,10 @@ motor motorL1 = motor(PORT8, ratio6_1, false);
 motor motorL2 = motor(PORT6, ratio6_1, false); 
 motor dr4bR = motor(PORT16, ratio36_1, false); 
 motor dr4bL = motor(PORT17, ratio36_1, true); 
-motor intake = motor(PORT19, ratio18_1, false); 
+motor intake = motor(PORT19, ratio6_1, false); 
 motor outtake = motor(PORT2, ratio18_1, true); 
 motor outtake_move = motor(PORT10, ratio18_1, false); 
 inertial imu = inertial(PORT3); 
-aivision AIVision = aivision(PORT13); 
 
 // Sensors. PORTS ARE PLACEHOLDERS until the build team mounts them.
 // Code checks installed() and skips any sensor that isn't plugged in.
@@ -42,7 +41,8 @@ distance frontSensor = distance(PORT12); // points forward (outtake side) at goa
 aivision::colordesc RED_PIN(1, 200, 30, 40, 10.0, 0.2);
 aivision::colordesc BLUE_PIN(2, 30, 70, 200, 10.0, 0.2);
 aivision::colordesc YELLOW_PIN(3, 220, 200, 40, 10.0, 0.2);
-aivision aiVision(PORT13, RED_PIN, BLUE_PIN, YELLOW_PIN);
+// ALL_TAGS: also detect AprilTags (used to line up on goals in auton)
+aivision aiVision(PORT13, RED_PIN, BLUE_PIN, YELLOW_PIN, aivision::ALL_TAGS);
 // Motor groups
 motor_group motorGroupR = motor_group(motorR1, motorR2);
 motor_group motorGroupL = motor_group(motorL1, motorL2);
@@ -60,6 +60,7 @@ const double LIFT_SLOW_ZONE_DEG = 140.0; // within this many degrees of the bott
 const int LIFT_UP_SPEED = 100;           // percent. Lifting fights gravity
 const int LIFT_DOWN_SPEED = 60;          // percent
 const int LIFT_DOWN_SLOW_SPEED = 30;     // percent. Near the bottom so it doesn't slam
+const double OUTTAKE_MOVE_PRESET_DEG = 100.0; // up arrow sends outtake_move here (same numbers as "Aim" on controller line 3)
 const int LIFT_MAX_TORQUE = 100;         // percent. Mentor suggested 55-60 to protect motors once the lift is strong enough
 
 // NOTE: driveLiftSide() is not called right now. Driver control uses the simple
@@ -86,6 +87,7 @@ void pre_auton() {
   motorGroupL.setStopping(coast);
   motorGroupR.setStopping(coast);
   outtake_move.setStopping(hold);
+  aiVision.tagDetection(true); // AprilTags are off by default
 
   // Robot must stay still for about 2 seconds while this runs
   imu.calibrate();
@@ -109,12 +111,19 @@ void driver_control() {
     motorGroupL.setStopping(coast); // not a sudden stop, but moves forward with the momentum it has before coming to a rest.
     motorGroupR.setStopping(coast); // not a sudden stop, but moves forward with the momentum it has before coming to a rest.
     dr4b.setStopping(hold); // if not being adjusted by the controller, the dr4b will not fall due to gravity, rather hold.
-    dr4b.setVelocity(100, percent); // lift speed for R1/R2 below (was a stray line at file level, which doesn't compile)
+    dr4b.setVelocity(50, percent); // lift speed for R1/R2 below (was a stray line at file level, which doesn't compile)
     dr4b.setMaxTorque(LIFT_MAX_TORQUE, percent);
+    // Erase the auton selector buttons (keeps the auton name/time lines at the top)
+    Brain.Screen.setPenColor(black);
+    Brain.Screen.setFillColor(black);
+    Brain.Screen.drawRectangle(0, 45, 480, 195);
+    Brain.Screen.setPenColor(white);
+
     int deadband = 5;
     bool outtakeForward = false; // false = reverse (hold pin), true = forward (score)
     bool aWasPressed = false;    // for detecting a new A press, not a held one
     bool outtakeStopped = false; // set by the down arrow, cleared by A
+    bool outtakeMovePreset = false; // true while outtake_move is going to / holding the up-arrow angle
     while (true) {
         // --- READ JOYSTICKS & SCALE TO 75% MAX SPEED ---
         int forwardSpeed = static_cast<int>(curve(Controller1.Axis3.position(), 0.6) * 0.75); // y Axis (max 100, min -100) -> 0.75 to maintain control over the robot and not have a volatile shift over a small touch.
@@ -122,10 +131,22 @@ void driver_control() {
 
         // Telemetry display on Controller Screen
         Controller1.Screen.setCursor(1, 1);
-        Controller1.Screen.print("Fwd Vel:  %d%%   ", forwardSpeed); // move to line 1 to print fwd motion for testing
+        Controller1.Screen.print("Fwd:%d%% Turn:%d%%     ", forwardSpeed, turnSpeed); // drive speeds for testing
 
+        // Line 2: AprilTag nearest the center of the camera.
+        // Use it to find each goal's tag ID and TAG_TARGET_X_GOAL1/2 (auton.cpp)
         Controller1.Screen.setCursor(2, 1);
-        Controller1.Screen.print("Turn Vel: %d%%   ", turnSpeed); // move to line 2 to print fwd motion for testing
+        int tagCount = aiVision.installed() ? aiVision.takeSnapshot(aivision::ALL_TAGS) : 0;
+        int tagId = -1, tagX = -1;
+        for (int i = 0; i < tagCount; i++) {
+            int x = aiVision.objects[i].centerX;
+            if (tagId < 0 || abs(x - 160) < abs(tagX - 160)) {
+                tagId = aiVision.objects[i].id;
+                tagX = x;
+            }
+        }
+        if (tagId >= 0) Controller1.Screen.print("Tag id:%d x:%d     ", tagId, tagX);
+        else Controller1.Screen.print("Tag: none          ");
 
         Controller1.Screen.setCursor(3, 1);
         Controller1.Screen.print("Aim:%.0f Lift:%.0f   ", outtake_move.position(rotationUnits::deg), dr4b.position(rotationUnits::deg)); // line 3 is for finding the auton aim and lift angles
@@ -136,7 +157,7 @@ void driver_control() {
         // This is known as Split-Arcade, rather than Tank. 
         // They can both used but are for different driver preferences. 
         // The Tank uses one axis to move right and one to move left. 
-        // However, the split-arcade uses one axis for the direction and the other for the speed.
+        // However, the split-arcade uses one axis for the direction and the other for the s\peed.
         // Easier to understand conceptually considering velocity in the frame of a vector instead.
 
         // Clamp total combined motor velocity strictly between -75% and +75%
@@ -219,18 +240,30 @@ void driver_control() {
             outtake.spin(outtakeForward ? forward : reverse);
         }
 
+        // outtake_move: Y/B move it by hand. Up arrow sends it to OUTTAKE_MOVE_PRESET_DEG
+        // and it keeps going there until it arrives or Y/B is pressed.
         if (Controller1.ButtonY.pressing()) {
+            outtakeMovePreset = false;
             outtake_move.setVelocity(100, percent);
             outtake_move.spin(forward);
         }
 
         else if (Controller1.ButtonB.pressing()) {
+            outtakeMovePreset = false;
             outtake_move.setVelocity(100, percent);
             outtake_move.spin(reverse);
         }
 
-        else {
-            outtake_move.stop();
+        else if (Controller1.ButtonUp.pressing()) {
+            if (!outtakeMovePreset) {
+                outtakeMovePreset = true;
+                outtake_move.setVelocity(100, percent);
+                outtake_move.spinToPosition(OUTTAKE_MOVE_PRESET_DEG, rotationUnits::deg, false);
+            }
+        }
+
+        else if (!outtakeMovePreset) {
+            outtake_move.stop(); // holds position (stopping mode is hold)
         }
 
         // Brief delay to give time to the brain scheduler
@@ -246,7 +279,10 @@ void comp() {
     // Run the pre-autonomous function
     pre_auton();
     preAutonRunning = false;
-    
+
+    // Pick the auton on the brain screen. Returns once the robot is enabled.
+    runAutonSelector();
+
     // Prevent main from exiting with an infinite loop
     while (true) {
         wait(100,msec);
